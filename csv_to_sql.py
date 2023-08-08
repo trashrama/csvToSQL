@@ -30,50 +30,59 @@ class Csv:
     @staticmethod
     def __pegarNome(locacao):
 
-        temp = locacao.split('.')[0].strip()
-        nome = []
-        i = len(temp)-1
 
-        while(temp[i].isalpha()):
-            nome.append(temp[i])
-            i -= 1
-        nome.reverse()
+        if '.csv' in locacao:
+            temp = locacao.split('.')[0].strip()
+            nome = []
+            i = len(temp)-1
 
-        return ''.join(nome).strip().upper()
+            while(temp[i].isalpha()):
+                nome.append(temp[i])
+                i -= 1
+            nome.reverse()
 
-    def definirCSV(self, locacao_csv, enc):
-        print('3% - Definindo codificação')
-        # temp = None
-        # falhou = False
-        # for enc in self.possiveisEncodings:
-        #     temp = pd.read_csv(locacao_csv, sep=None, encoding=enc, engine='python')
-        #     lista = temp.values.tolist()
-        #     for sublista in lista:
-        #         if not falhou:
-        #             for item in sublista:
-        #                 if not falhou and isinstance(item, str):
-        #                     for letra in item:
-        #                         if not letra.isalnum() and letra != ' ':
-        #                             falhou = True
-        #                             print(f'5% {enc} falhou! Tentando a próxima')
-        #                             break
-        temp = pd.read_csv(locacao_csv, sep=None, encoding=enc, engine='python')
+            return ''.join(nome).strip().upper()
+        else:
+            print("ERRO: Sequer é um arquivo .csv")
+            exit(0)
+
+    def definirCSV(self, locacao_csv, enc, colunas):
+        print('3% - Definindo codificação e colunas')
+        temp = pd.read_csv(locacao_csv, sep=None, encoding='latin1', engine='python')
+        if colunas:
+            colunas = [col.upper().strip() for col in colunas]
+            temp.columns = temp.columns.str.upper().str.strip()
+            print(temp.columns.values)
+
+            if all(col in temp.columns.values for col in colunas):
+                temp = temp.filter(items=colunas)
+            else:
+                print("Uma ou mais colunas descritas não existem")
+                exit(0)
         return temp
 
 
 
 
-    def __init__(self, locacao_csv, enc):
-        self.csv = self.definirCSV(locacao_csv, enc)
+    def __init__(self, locacao_csv, enc, colunas = []):
+        self.csv = self.definirCSV(locacao_csv, enc, colunas)
         self.nome_tab = self.__pegarNome(locacao_csv)
         self.csv_lista = []
         self.podeNull = []
-        self.tratar()
-    def tratar(self):
-        print("7% - Trocando NaN's por NULL")
+
+    def tratar(self, qtde):
+        print("50% - Trocando NaN's por NULL")
 
         #retirando da lista os sigilosos
-        self.csv_lista = [sublista for sublista in list(self.csv.values.tolist()) if sublista[0] != -11]
+
+        if qtde is None:
+            qtde = len(list(self.csv.values.tolist()))
+        else:
+            if qtde > len(list(self.csv.values.tolist())) or qtde <= 0:
+                print(f"ERRO: - A quantidade disponível em {self.nome_tab} é {len(self.csv_lista)} entradas")
+                return None
+
+        self.csv_lista = [sublista for i, sublista in enumerate(list(self.csv.values.tolist())) if i < qtde]
 
         for i in range(len(self.csv_lista)):
             for y in range(len(self.csv_lista[i])):
@@ -83,7 +92,8 @@ class Csv:
                 elif (self.csv_lista[i])[y] == '':
                     self.podeNull.append(y)
 
-        print("50% - Alterações de NaN finalizadas")
+        print("70% - Alterações de NaN finalizadas")
+        return qtde
 
     def gravarTabela(self):
 
@@ -121,19 +131,15 @@ class Csv:
                 f.writelines(',\n')
         f.writelines(");")
         f.close()
-        print("70% - Gravação de Tabela concluída")
+        print("12% - Gravação de Tabela concluída")
 
     def gravarInserts(self, qtde = None, porLetra = ''):
 
         verifica = False if qtde is None and porLetra == '' else True
         porLetra = porLetra.strip()
+        
+        qtde = self.tratar(qtde)
 
-        if qtde is None:
-            qtde = len(self.csv_lista)
-        else:
-            if qtde > len(self.csv_lista) or qtde <= 0:
-                print(f"ERRO: - A quantidade disponível em {self.nome_tab} é {len(self.csv_lista)} entradas")
-                return None
 
         if (len(porLetra) != 3 and len(porLetra) != 1 and len(porLetra) != 0) or (not porLetra.isalpha() and porLetra != '' and '-' not in porLetra):
             print('ERRO: - Digite uma letra de A a Z no parâmetro "porLetra"')
@@ -141,6 +147,12 @@ class Csv:
 
         if len(porLetra) == 3:
             listaLetras = porLetra.split('-')
+            if listaLetras[0] > listaLetras[1]:
+                aux = listaLetras[0]
+                listaLetras[0] = listaLetras[1]
+                listaLetras[1] = aux
+
+
 
         file = open(self.__limpar_arquivo("inserts.sql"), "a")
         file.write(f'INSERT INTO {self.nome_tab} VALUES ')
@@ -205,10 +217,12 @@ class Csv:
 
 
 if __name__ == '__main__':
-    meuCsv = Csv('202301_Cadastro.csv', 'latin-1')
+    meuCsv = Csv('202301_Cadastro.csv', 'latin-1', colunas=['nome', 'CPF'])
     meuCsv.gravarTabela()
 
     """
 
     """
+    #possivel modificacao
+    #sem ser 14 no geral, no caso tipo: 14 entradas de A, 14 entradas de B... até 14 entradas de D
     meuCsv.gravarInserts(qtde=14, porLetra='A-D')
